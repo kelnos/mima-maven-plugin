@@ -3,14 +3,14 @@ package org.spurint.maven.plugins.mima
 import com.typesafe.tools.mima.core.util.log.Logging
 import com.typesafe.tools.mima.core.{Config, Problem, ProblemFilter, ProblemFilters, reporterClassPath}
 import com.typesafe.tools.mima.lib.MiMaLib
-import java.io.{File, FileNotFoundException}
-import java.net.URL
+import java.io.{File, FileNotFoundException, InputStream}
+import java.net.{HttpURLConnection, URL}
 import java.util
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager
 import org.apache.maven.artifact.repository.ArtifactRepository
 import org.apache.maven.artifact.{Artifact, DefaultArtifact}
 import org.apache.maven.execution.MavenSession
-import org.apache.maven.plugin.{AbstractMojo, MojoExecutionException, MojoFailureException}
+import org.apache.maven.plugin.{AbstractMojo, AbstractMojoExecutionException, MojoExecutionException, MojoFailureException}
 import org.apache.maven.plugins.annotations._
 import org.apache.maven.project.{DefaultProjectBuildingRequest, MavenProject}
 import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
@@ -225,19 +225,46 @@ class MiMaMojo extends AbstractMojo {
   private def fetchLatestReleaseVersion(): Option[String] = {
     this.remoteRepositories.asScala.foldLeft(Option.empty[String])({
       case (None, repo) =>
-        try {
-          val url = new URL(s"${repo.getUrl}/${this.project.getGroupId.replaceAllLiterally(".", "/")}/${this.project.getArtifactId}/maven-metadata.xml")
-          val conn = url.openConnection()
-          conn.setConnectTimeout(2000)
-          conn.setReadTimeout(4000)
-          val xml = XML.load(conn.getInputStream)
+        val url = new URL(s"${repo.getUrl}/${this.project.getGroupId.replaceAllLiterally(".", "/")}/${this.project.getArtifactId}/maven-metadata.xml")
+        makeHttpRequest(url).flatMap({ input =>
+          val xml = XML.load(input)
           (xml \ "versioning" \ "release").headOption.map(_.text.trim)
-        } catch {
-          case _: FileNotFoundException => None
-          case NonFatal(e) => throw new MojoExecutionException(e.getMessage, e)
-        }
+        })
       case (v @ Some(_), _) => v
     })
+  }
+
+  private def makeHttpRequest(url: URL, retriesLeft: Int = 3): Option[InputStream] = {
+    try {
+      val conn = url.openConnection() match {
+        case huc: HttpURLConnection => huc
+        case x => throw new AssertionError(s"${x.getClass.getName} should be a HttpURLConnection")
+      }
+      conn.setConnectTimeout(2000)
+      conn.setReadTimeout(4000)
+      conn.getResponseCode match {
+        case x if x >= 200 && x < 300 =>
+          Option(conn.getInputStream)
+        case x if x >= 300 && x < 400 && retriesLeft > 0 =>
+          Option(conn.getHeaderField("Location")).fold(
+            throw new MojoExecutionException(s"Repository server at $url returned status $x but with no Location header")
+          )(
+            location => makeHttpRequest(new URL(location), retriesLeft - 1)
+          )
+        case 404 | 410 =>
+          None
+        case x if x >= 400 && x < 500 && x != 408 =>
+          throw new MojoExecutionException(s"Repository server at $url returned status $x")
+        case _ if retriesLeft > 0 =>
+          makeHttpRequest(url, retriesLeft - 1)
+        case x =>
+          throw new MojoExecutionException(s"Repository server at $url returned status $x")
+      }
+    } catch {
+      case _: FileNotFoundException => None
+      case NonFatal(e) if !classOf[AbstractMojoExecutionException].isAssignableFrom(e.getClass) =>
+        throw new MojoExecutionException(e.getMessage, e)
+    }
   }
 
   private def canCompatCheck(project: MavenProject): Boolean = MiMaMojo.PACKAGING_TYPES.contains(project.getPackaging)
