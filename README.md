@@ -61,6 +61,7 @@ Versioning](https://semver.org/), namely:
 ` previousArtifact` | `latest-release` | If set to `latest-release`, will attempt to determine the most recent released version as described above; otherwise, this can be set to a specific version of an artifact. |
 | `failOnProblem` | `semver` | If set to `semver`, the previous artifact version is compared with the current version, and whether or not incompatibilities will cause the build to fail is decided based on Semantic Versioning rules, as described above.  If set to `never` or `false`, binary incompatibilities are never allowed, while `always` or `true` will put the plugin into warn-only mode. |
 | `failOnNoPrevious` | `false` | Whether or not to fail the build if a previous artifact version is not supplied or cannot be found. |
+| `readTimeout` | `4000` | Timeout in ms to fetch the previous artifact. |
 | `direction` | `backward` | Whether to do `backward` compatibilities checks, `forward` compatibility checks, or `both`. |
 | `filters` | (none) | A list of `<filter>` elements that allow you to ignore particular problems (see below). |
 
