@@ -78,6 +78,9 @@ class MiMaMojo extends AbstractMojo {
   @Parameter(property = "mima.skip", defaultValue = "false")
   private var skip: Boolean = false
 
+  @Parameter(property = "readTimeout", defaultValue = "4000")
+  private var readTimeout: Int = 4000
+
   @Parameter(defaultValue = "${project.build.outputDirectory}", required = true, readonly = true)
   private var buildOutputDirectory: File = _
 
@@ -241,7 +244,7 @@ class MiMaMojo extends AbstractMojo {
         case x => throw new AssertionError(s"${x.getClass.getName} should be a HttpURLConnection")
       }
       conn.setConnectTimeout(2000)
-      conn.setReadTimeout(4000)
+      conn.setReadTimeout(readTimeout)
       conn.getResponseCode match {
         case x if x >= 200 && x < 300 =>
           Option(conn.getInputStream)
