@@ -21,7 +21,7 @@ a fourth version component will be added to the plugin's version number.
       <version>${mima-maven-plugin.version}</version>
       <executions>
         <execution>
-          <id>check-abi/id>
+          <id>check-abi</id>
           <goals>
             <goal>check-abi</goal>
           </goals>
