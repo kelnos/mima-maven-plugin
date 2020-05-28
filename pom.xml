@@ -50,7 +50,7 @@
     <maven-project.version>3.0.5-alpha-2</maven-project.version>
     <maven-shared.version>3.1.0</maven-shared.version>
     <mima.version>0.7.0</mima.version>
-    <plexus-utils.version>3.2.0</plexus-utils.version>
+    <plexus-utils.version>3.2.1</plexus-utils.version>
     <scala.binary.version>2.12</scala.binary.version>
     <scala.version>2.12.11</scala.version>
     <scala-xml.version>1.2.0</scala-xml.version>
