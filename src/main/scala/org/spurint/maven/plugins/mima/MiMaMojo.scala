@@ -1,7 +1,7 @@
 package org.spurint.maven.plugins.mima
 
 import com.typesafe.tools.mima.core.util.log.Logging
-import com.typesafe.tools.mima.core.{Config, Problem, ProblemFilter, ProblemFilters, reporterClassPath}
+import com.typesafe.tools.mima.core.{Config, Problem, ProblemFilter, ProblemFilters}
 import com.typesafe.tools.mima.lib.MiMaLib
 import java.io.{File, FileNotFoundException, InputStream}
 import java.net.{HttpURLConnection, URL}
@@ -16,6 +16,7 @@ import org.apache.maven.project.{DefaultProjectBuildingRequest, MavenProject}
 import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
 import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, ArtifactResolverException}
 import scala.collection.JavaConverters._
+import scala.tools.nsc.classpath.{AggregateClassPath, ClassPathFactory}
 import scala.tools.nsc.util.ClassPath
 import scala.util.control.NonFatal
 import scala.xml.XML
@@ -106,14 +107,15 @@ class MiMaMojo extends AbstractMojo {
     override def error(str: String): Unit = getLog.error(str)
   }
 
+  private def reporterClassPath(classpath: String): ClassPath =
+    AggregateClassPath.createAggregate(new ClassPathFactory(Config.settings).classesInPath(classpath): _*)
+
   override def execute(): Unit = {
     if (skip) {
       return
     } else if (!canCompatCheck(this.project)) {
       return
     }
-
-    Config.setup("mima-maven-plugin", Array.empty)
 
     val direction = Direction.unapply(this.direction)
       .getOrElse(throw new MojoExecutionException(s"Unknown direction type '${this.direction}'"))
@@ -202,7 +204,7 @@ class MiMaMojo extends AbstractMojo {
   }
 
   private def collectProblems(classpath: ClassPath, prev: File, cur: File): () => List[Problem] =
-    () => new MiMaLib(classpath, mavenLogging).collectProblems(prev.getAbsolutePath, cur.getAbsolutePath)
+    () => new MiMaLib(classpath, mavenLogging).collectProblems(prev, cur)
 
   private def resolveArtifact(artifact: Artifact): File = {
     val buildingRequest = new DefaultProjectBuildingRequest(this.session.getProjectBuildingRequest)
