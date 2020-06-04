@@ -53,7 +53,7 @@
     <maven-shared.version>3.2.1</maven-shared.version>
     <maven-common-artifact-filters.version>3.1.0</maven-common-artifact-filters.version>
     <mima.version>0.7.0</mima.version>
-    <plexus-utils.version>3.2.1</plexus-utils.version>
+    <plexus-utils.version>3.3.0</plexus-utils.version>
     <scala.binary.version>2.12</scala.binary.version>
     <scala.version>2.12.11</scala.version>
     <scala-xml.version>1.3.0</scala-xml.version>
