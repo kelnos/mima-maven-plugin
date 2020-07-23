@@ -18,6 +18,7 @@ import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, Arti
 import scala.collection.JavaConverters._
 import scala.tools.nsc.classpath.{AggregateClassPath, ClassPathFactory}
 import scala.tools.nsc.util.ClassPath
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 import scala.xml.XML
 
@@ -128,27 +129,27 @@ class MiMaMojo extends AbstractMojo {
     (this.previousArtifact match {
       case "latest-release" => fetchLatestReleaseVersion()
       case v => Option(v)
+    }).flatMap({ previousArtifactVersion =>
+      val prevArtifact = new DefaultArtifact(
+        this.project.getGroupId, this.project.getArtifactId, previousArtifactVersion,
+        null, this.project.getPackaging, null,
+        this.artifactHandlerManager.getArtifactHandler(this.project.getPackaging))
+      resolveArtifact(prevArtifact).map((prevArtifact, _))
     }).fold({
       if (this.failOnNoPrevious) {
         throw new MojoExecutionException("No previous artifact version found for binary compatilibity checks")
       } else {
         getLog.info("No previous artifact version found; not checking binary compatibility")
       }
-    })({ previousArtifactVersion =>
-      val prevArtifact = new DefaultArtifact(
-        this.project.getGroupId, this.project.getArtifactId, previousArtifactVersion,
-        null, this.project.getPackaging, null,
-        this.artifactHandlerManager.getArtifactHandler(this.project.getPackaging))
-      val prev = resolveArtifact(prevArtifact)
-
+    })({ case (previousArtifact, previousArtifactFile) =>
       val classpathStr = this.project.getArtifacts.asInstanceOf[util.Set[Artifact]].asScala
-        .map(resolveArtifact)
+        .map(a => resolveArtifact(a).getOrElse(throw new AssertionError(s"Failed to get project artifact $a")))
         .map(_.getAbsolutePath)
         .mkString(File.pathSeparator)
       val classpath = reporterClassPath(classpathStr)
 
-      val (bcProblems, fcProblems) = runMima(classpath, direction, prev)
-      reportErrors(failOnProblem, prevArtifact.getVersion, filters, bcProblems, fcProblems)
+      val (bcProblems, fcProblems) = runMima(classpath, direction, previousArtifactFile)
+      reportErrors(failOnProblem, previousArtifact.getVersion, filters, bcProblems, fcProblems)
     })
   }
 
@@ -172,41 +173,41 @@ class MiMaMojo extends AbstractMojo {
       List(s" * $desc") ++ howToFilterMsg
     }
 
-    val shouldFailOnProblem = shouldFail(failOnProblem, prevVersion)
-
     val bcErrors = bcProblems.filter(isReported("current"))
     val fcErrors = fcProblems.filter(isReported("other"))
 
     val count = bcErrors.length + fcErrors.length
+    val shouldFailOnProblem = shouldFail(failOnProblem, prevVersion)
+    val logResult: String => Unit = if (count == 0) getLog.info else if (shouldFailOnProblem) getLog.error else getLog.warn
+
     val filteredCount = bcProblems.length + fcProblems.length - bcErrors.length - fcErrors.length
     val filteredMsg = if (filteredCount > 0) s" (filtered $filteredCount)" else ""
-    getLog.info(s"Found $count potential binary incompatibilities while checking against $prevVersion$filteredMsg")
 
-    (bcProblems.map(pretty("current")) ++ fcProblems.map(pretty("other"))).foreach({ p =>
-      if (shouldFailOnProblem) p.foreach(getLog.error)
-      else p.foreach(getLog.warn)
-    })
+    if (count == 0) {
+      logResult(s"Binary compatibility check passed$filteredMsg")
+    } else {
+      logResult(s"Failed binary compatibility check$filteredMsg")
+      (bcErrors.map(pretty("current")) ++ fcErrors.map(pretty("other"))).foreach(_.foreach(logResult))
 
-    if (shouldFailOnProblem && (bcProblems.nonEmpty || fcProblems.nonEmpty)) {
-      throw new MojoFailureException("Binary compatibility check failed (see above for errors)")
+      if (shouldFailOnProblem) {
+        throw new MojoFailureException("Binary compatibility check failed (see above for errors)")
+      }
     }
   }
 
   private def runMima(classpath: ClassPath, direction: Direction, prev: File): (List[Problem], List[Problem]) = {
-    val checkBC = collectProblems(classpath, prev, this.buildOutputDirectory)
-    val checkFC = collectProblems(classpath, this.buildOutputDirectory, prev)
+    val mimaLib = new MiMaLib(classpath, mavenLogging)
+    def checkBC = mimaLib.collectProblems(prev, this.buildOutputDirectory)
+    def checkFC = mimaLib.collectProblems(this.buildOutputDirectory, prev)
 
     direction match {
-      case Direction.Backward => (checkBC(), Nil)
-      case Direction.Forward => (Nil, checkFC())
-      case Direction.Both => (checkBC(), checkFC())
+      case Direction.Backward => (checkBC, Nil)
+      case Direction.Forward => (Nil, checkFC)
+      case Direction.Both => (checkBC, checkFC)
     }
   }
 
-  private def collectProblems(classpath: ClassPath, prev: File, cur: File): () => List[Problem] =
-    () => new MiMaLib(classpath, mavenLogging).collectProblems(prev, cur)
-
-  private def resolveArtifact(artifact: Artifact): File = {
+  private def resolveArtifact(artifact: Artifact): Option[File] = {
     val buildingRequest = new DefaultProjectBuildingRequest(this.session.getProjectBuildingRequest)
     buildingRequest.setRemoteRepositories(remoteRepositories)
 
@@ -217,14 +218,18 @@ class MiMaMojo extends AbstractMojo {
     Option(artifact.getArtifactHandler).map(_.getExtension).foreach(coordinate.setExtension)
     coordinate.setClassifier(artifact.getClassifier)
 
-    try {
-      val result = this.artifactResolver.resolveArtifact(buildingRequest, coordinate)
-      Option(result.getArtifact)
-        .getOrElse(throw new ArtifactResolverException("Resolver returned null artifact", new NullPointerException))
-        .getFile
-    } catch {
-      case e: ArtifactResolverException => throw new MojoExecutionException(e.getMessage, e)
-    }
+    Try(this.artifactResolver.resolveArtifact(buildingRequest, coordinate))
+      .flatMap(ar => Option(ar.getArtifact).fold[Try[Artifact]](Failure(new ArtifactResolverException("Resolver returned null artifact", new NullPointerException)))(Success.apply))
+      .flatMap(a => Option(a.getFile).fold[Try[File]](Failure(new ArtifactResolverException("Resolver returned null file", new NullPointerException)))(Success.apply))
+      .map(Option.apply)
+      .recover({
+        case e: ArtifactResolverException =>
+          getLog.warn(s"Unable to fetch previous artifact: $e")
+          Option.empty
+      }) match {
+        case Success(file) => file
+        case Failure(ex) => throw ex
+      }
   }
 
   private def fetchLatestReleaseVersion(): Option[String] = {
