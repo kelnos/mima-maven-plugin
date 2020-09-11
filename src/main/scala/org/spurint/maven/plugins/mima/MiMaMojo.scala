@@ -1,7 +1,7 @@
 package org.spurint.maven.plugins.mima
 
-import com.typesafe.tools.mima.core.util.log.Logging
-import com.typesafe.tools.mima.core.{Config, Problem, ProblemFilter, ProblemFilters}
+import com.typesafe.tools.mima.core.util.log.MavenLogging
+import com.typesafe.tools.mima.core.{Problem, ProblemFilter, ProblemFilters}
 import com.typesafe.tools.mima.lib.MiMaLib
 import java.io.{File, FileNotFoundException, InputStream}
 import java.net.{HttpURLConnection, URL}
@@ -16,8 +16,6 @@ import org.apache.maven.project.{DefaultProjectBuildingRequest, MavenProject}
 import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
 import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, ArtifactResolverException}
 import scala.collection.JavaConverters._
-import scala.tools.nsc.classpath.{AggregateClassPath, ClassPathFactory}
-import scala.tools.nsc.util.ClassPath
 import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 import scala.xml.XML
@@ -101,16 +99,6 @@ class MiMaMojo extends AbstractMojo {
   @Component
   private var artifactHandlerManager: ArtifactHandlerManager = _
 
-  private object mavenLogging extends Logging {
-    override def debugLog(str: String): Unit = getLog.debug(str)
-    override def info(str: String): Unit = getLog.info(str)
-    override def warn(str: String): Unit = getLog.warn(str)
-    override def error(str: String): Unit = getLog.error(str)
-  }
-
-  private def reporterClassPath(classpath: String): ClassPath =
-    AggregateClassPath.createAggregate(new ClassPathFactory(Config.settings).classesInPath(classpath): _*)
-
   override def execute(): Unit = {
     if (skip) {
       return
@@ -142,11 +130,9 @@ class MiMaMojo extends AbstractMojo {
         getLog.info("No previous artifact version found; not checking binary compatibility")
       }
     })({ case (previousArtifact, previousArtifactFile) =>
-      val classpathStr = this.project.getArtifacts.asInstanceOf[util.Set[Artifact]].asScala
+      val classpath = this.project.getArtifacts.asInstanceOf[util.Set[Artifact]].asScala
         .map(a => resolveArtifact(a).getOrElse(throw new AssertionError(s"Failed to get project artifact $a")))
-        .map(_.getAbsolutePath)
-        .mkString(File.pathSeparator)
-      val classpath = reporterClassPath(classpathStr)
+        .toSeq
 
       val (bcProblems, fcProblems) = runMima(classpath, direction, previousArtifactFile)
       reportErrors(failOnProblem, previousArtifact.getVersion, filters, bcProblems, fcProblems)
@@ -195,8 +181,8 @@ class MiMaMojo extends AbstractMojo {
     }
   }
 
-  private def runMima(classpath: ClassPath, direction: Direction, prev: File): (List[Problem], List[Problem]) = {
-    val mimaLib = new MiMaLib(classpath, mavenLogging)
+  private def runMima(classpath: Seq[File], direction: Direction, prev: File): (List[Problem], List[Problem]) = {
+    val mimaLib = new MiMaLib(classpath, new MavenLogging(getLog))
     def checkBC = mimaLib.collectProblems(prev, this.buildOutputDirectory)
     def checkFC = mimaLib.collectProblems(this.buildOutputDirectory, prev)
 
