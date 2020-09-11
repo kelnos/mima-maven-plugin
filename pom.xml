@@ -6,7 +6,7 @@
 
   <groupId>org.spurint.maven.plugins</groupId>
   <artifactId>mima-maven-plugin</artifactId>
-  <version>0.7.0.2-SNAPSHOT</version>
+  <version>0.8.0-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
 
   <name>MiMa Maven Plugin</name>
