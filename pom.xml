@@ -6,7 +6,7 @@
 
   <groupId>org.spurint.maven.plugins</groupId>
   <artifactId>mima-maven-plugin</artifactId>
-  <version>0.8.1.1-SNAPSHOT</version>
+  <version>0.9.2-SNAPSHOT</version>
   <packaging>maven-plugin</packaging>
 
   <name>MiMa Maven Plugin</name>
@@ -52,7 +52,7 @@
     <maven-project.version>3.0-alpha-2</maven-project.version>
     <maven-shared.version>3.2.1</maven-shared.version>
     <maven-common-artifact-filters.version>3.1.0</maven-common-artifact-filters.version>
-    <mima.version>0.8.1</mima.version>
+    <mima.version>0.9.2</mima.version>
     <plexus-utils.version>3.3.0</plexus-utils.version>
     <scala.binary.version>2.12</scala.binary.version>
     <scala.version>2.12.14</scala.version>

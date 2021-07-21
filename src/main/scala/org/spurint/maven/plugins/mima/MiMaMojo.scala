@@ -1,6 +1,6 @@
 package org.spurint.maven.plugins.mima
 
-import com.typesafe.tools.mima.core.util.log.MavenLogging
+import com.typesafe.tools.mima.core.util.log.Logging
 import com.typesafe.tools.mima.core.{Problem, ProblemFilter, ProblemFilters}
 import com.typesafe.tools.mima.lib.MiMaLib
 import java.io.{File, FileNotFoundException, InputStream}
@@ -17,8 +17,8 @@ import org.apache.maven.project.{DefaultProjectBuildingRequest, MavenProject}
 import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
 import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, ArtifactResolverException}
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 import scala.xml.XML
 
 sealed trait Direction
@@ -183,7 +183,12 @@ class MiMaMojo extends AbstractMojo {
   }
 
   private def runMima(classpath: Seq[File], direction: Direction, prev: File): (List[Problem], List[Problem]) = {
-    val mimaLib = new MiMaLib(classpath, new MavenLogging(getLog))
+    val mimaLib = new MiMaLib(classpath, new Logging {
+      override def debug(str: String): Unit = getLog.debug(str)
+      override def verbose(str: String): Unit = getLog.info(str)
+      override def warn(str: String): Unit = getLog.warn(str)
+      override def error(str: String): Unit = getLog.error(str)
+    })
     def checkBC = mimaLib.collectProblems(prev, this.buildOutputDirectory)
     def checkFC = mimaLib.collectProblems(this.buildOutputDirectory, prev)
 
