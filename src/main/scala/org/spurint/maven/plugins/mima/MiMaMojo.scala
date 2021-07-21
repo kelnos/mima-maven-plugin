@@ -8,6 +8,7 @@ import java.net.{HttpURLConnection, URL}
 import java.util
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager
 import org.apache.maven.artifact.repository.ArtifactRepository
+import org.apache.maven.artifact.versioning.VersionRange
 import org.apache.maven.artifact.{Artifact, DefaultArtifact}
 import org.apache.maven.execution.MavenSession
 import org.apache.maven.plugin.{AbstractMojo, AbstractMojoExecutionException, MojoExecutionException, MojoFailureException}
@@ -119,7 +120,7 @@ class MiMaMojo extends AbstractMojo {
       case v => Option(v)
     }).flatMap({ previousArtifactVersion =>
       val prevArtifact = new DefaultArtifact(
-        this.project.getGroupId, this.project.getArtifactId, previousArtifactVersion,
+        this.project.getGroupId, this.project.getArtifactId, VersionRange.createFromVersion(previousArtifactVersion),
         null, this.project.getPackaging, null,
         this.artifactHandlerManager.getArtifactHandler(this.project.getPackaging))
       resolveArtifact(prevArtifact).map((prevArtifact, _))
