@@ -16,7 +16,7 @@ import org.apache.maven.plugins.annotations._
 import org.apache.maven.project.{DefaultProjectBuildingRequest, MavenProject}
 import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
 import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, ArtifactResolverException}
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 import scala.xml.XML
@@ -227,7 +227,7 @@ class MiMaMojo extends AbstractMojo {
   private def fetchLatestReleaseVersion(): Option[String] = {
     this.remoteRepositories.asScala.foldLeft(Option.empty[String])({
       case (None, repo) =>
-        val url = new URL(s"${repo.getUrl}/${this.project.getGroupId.replaceAllLiterally(".", "/")}/${this.project.getArtifactId}/maven-metadata.xml")
+        val url = new URL(s"${repo.getUrl}/${this.project.getGroupId.replace(".", "/")}/${this.project.getArtifactId}/maven-metadata.xml")
         makeHttpRequest(url).flatMap({ input =>
           val xml = XML.load(input)
           (xml \ "versioning" \ "release").headOption.map(_.text.trim)
