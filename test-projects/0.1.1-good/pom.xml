@@ -3,7 +3,7 @@
 
   <groupId>org.spurint.maven.plugins.test</groupId>
   <artifactId>mima-maven-plugin-test-project</artifactId>
-  <version>0.1.1</version>
+  <version>0.1.26</version>
   <packaging>jar</packaging>
 
   <name>MiMa Maven Plugin Test Project 0.1.1 (Good)</name>
