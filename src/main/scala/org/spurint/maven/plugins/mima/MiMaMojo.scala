@@ -3,11 +3,12 @@ package org.spurint.maven.plugins.mima
 import com.typesafe.tools.mima.core.util.log.Logging
 import com.typesafe.tools.mima.core.{Problem, ProblemFilter, ProblemFilters}
 import com.typesafe.tools.mima.lib.MiMaLib
+
 import java.io.{File, FileNotFoundException, InputStream}
 import java.net.{HttpURLConnection, URL}
 import java.util
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager
-import org.apache.maven.artifact.repository.ArtifactRepository
+import org.apache.maven.artifact.repository.{ArtifactRepository, Authentication}
 import org.apache.maven.artifact.versioning.VersionRange
 import org.apache.maven.artifact.{Artifact, DefaultArtifact}
 import org.apache.maven.execution.MavenSession
@@ -16,6 +17,9 @@ import org.apache.maven.plugins.annotations._
 import org.apache.maven.project.{DefaultProjectBuildingRequest, MavenProject}
 import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
 import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, ArtifactResolverException}
+import org.apache.maven.plugins.annotations.Parameter
+import org.apache.maven.settings.Settings
+
 import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -84,6 +88,9 @@ class MiMaMojo extends AbstractMojo {
 
   @Parameter(defaultValue = "${project.build.outputDirectory}", required = true, readonly = true)
   private var buildOutputDirectory: File = _
+
+  @Parameter(defaultValue = "${settings}", readonly = true, required = true)
+  private var settings: Settings = _
 
   @Parameter(defaultValue = "${project.remoteArtifactRepositories}", required = true, readonly = true)
   private var remoteRepositories: util.List[ArtifactRepository] = _
@@ -201,6 +208,21 @@ class MiMaMojo extends AbstractMojo {
 
   private def resolveArtifact(artifact: Artifact): Option[File] = {
     val buildingRequest = new DefaultProjectBuildingRequest(this.session.getProjectBuildingRequest)
+
+    remoteRepositories.forEach { repo =>
+      val serverOpt = Option(settings.getServer(repo.getId))
+      getLog.info(s"[jay-mima] Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
+      System.err.println(s"Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
+      serverOpt.foreach { server =>
+        val user = server.getUsername
+        val passwd = server.getPassword
+        val auth = new Authentication(user, passwd)
+        getLog.info(s"[jay-mima] Setting authentication for repo: ${repo.getUrl} server: ${server.getUsername} auth: ${auth.getUsername}")
+        System.err.println(s"Setting authentication for repo: ${repo.getUrl} server: ${server.getUsername} auth: ${auth.getUsername}")
+        repo.setAuthentication(auth)
+      }
+    }
+
     buildingRequest.setRemoteRepositories(remoteRepositories)
 
     val coordinate = new DefaultArtifactCoordinate
@@ -219,9 +241,9 @@ class MiMaMojo extends AbstractMojo {
           getLog.warn(s"Unable to fetch previous artifact: $e")
           Option.empty
       }) match {
-        case Success(file) => file
-        case Failure(ex) => throw ex
-      }
+      case Success(file) => file
+      case Failure(ex) => throw ex
+    }
   }
 
   private def fetchLatestReleaseVersion(): Option[String] = {
