@@ -20,6 +20,7 @@ import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, Arti
 import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.settings.Settings
 
+import java.util.Base64
 import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -83,8 +84,8 @@ class MiMaMojo extends AbstractMojo {
   @Parameter(property = "mima.skip", defaultValue = "false")
   private var skip: Boolean = false
 
-  @Parameter(property = "readTimeout", defaultValue = "4000")
-  private var readTimeout: Int = 4000
+  @Parameter(property = "readTimeout", defaultValue = "60000")
+  private var readTimeout: Int = 60000
 
   @Parameter(defaultValue = "${project.build.outputDirectory}", required = true, readonly = true)
   private var buildOutputDirectory: File = _
@@ -249,8 +250,11 @@ class MiMaMojo extends AbstractMojo {
   private def fetchLatestReleaseVersion(): Option[String] = {
     this.remoteRepositories.asScala.foldLeft(Option.empty[String])({
       case (None, repo) =>
+        val serverOpt = Option(settings.getServer(repo.getId))
+        getLog.info(s"Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
+        val credsOpt = serverOpt.map( {server => (server.getUsername, server.getPassword)})
         val url = new URL(s"${repo.getUrl}/${this.project.getGroupId.replace(".", "/")}/${this.project.getArtifactId}/maven-metadata.xml")
-        makeHttpRequest(url).flatMap({ input =>
+        makeHttpRequest(url, credsOpt).flatMap({ input =>
           val xml = XML.load(input)
           (xml \ "versioning" \ "release").headOption.map(_.text.trim)
         })
@@ -258,11 +262,17 @@ class MiMaMojo extends AbstractMojo {
     })
   }
 
-  private def makeHttpRequest(url: URL, retriesLeft: Int = 3): Option[InputStream] = {
+  private def makeHttpRequest(url: URL, credsOpt: Option[(String, String)], retriesLeft: Int = 3): Option[InputStream] = {
     try {
       val conn = url.openConnection() match {
         case huc: HttpURLConnection => huc
         case x => throw new AssertionError(s"${x.getClass.getName} should be a HttpURLConnection")
+      }
+      credsOpt.foreach { case (username, password) =>
+        val userPass = s"$username:$password"
+        val basicAuth = s"Basic ${new String(Base64.getEncoder.encode(userPass.getBytes))}"
+        getLog.info(s"$url using basic authentication.")
+        conn.setRequestProperty("Authorization", basicAuth)
       }
       conn.setConnectTimeout(2000)
       conn.setReadTimeout(readTimeout)
@@ -273,14 +283,14 @@ class MiMaMojo extends AbstractMojo {
           Option(conn.getHeaderField("Location")).fold(
             throw new MojoExecutionException(s"Repository server at $url returned status $x but with no Location header")
           )(
-            location => makeHttpRequest(new URL(location), retriesLeft - 1)
+            location => makeHttpRequest(new URL(location), credsOpt, retriesLeft - 1)
           )
         case 404 | 410 =>
           None
         case x if x >= 400 && x < 500 && x != 408 =>
           throw new MojoExecutionException(s"Repository server at $url returned status $x")
         case _ if retriesLeft > 0 =>
-          makeHttpRequest(url, retriesLeft - 1)
+          makeHttpRequest(url, credsOpt, retriesLeft - 1)
         case x =>
           throw new MojoExecutionException(s"Repository server at $url returned status $x")
       }
