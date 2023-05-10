@@ -42,6 +42,20 @@
     </snapshotRepository>
   </distributionManagement>
 
+  <repositories>
+    <repository>
+      <id>eng-mvn-all</id>
+      <url>https://usconviva.jfrog.io/usconviva/eng-mvn-all</url>
+    </repository>
+  </repositories>
+
+  <pluginRepositories>
+    <pluginRepository>
+      <id>eng-mvn-all</id>
+      <url>https://usconviva.jfrog.io/usconviva/eng-mvn-all</url>
+    </pluginRepository>
+  </pluginRepositories>
+
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
