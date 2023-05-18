@@ -212,13 +212,11 @@ class MiMaMojo extends AbstractMojo {
 
     remoteRepositories.forEach { repo =>
       val serverOpt = Option(settings.getServer(repo.getId))
-      getLog.info(s"[jay-mima] Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
       System.err.println(s"Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
       serverOpt.foreach { server =>
         val user = server.getUsername
         val passwd = server.getPassword
         val auth = new Authentication(user, passwd)
-        getLog.info(s"[jay-mima] Setting authentication for repo: ${repo.getUrl} server: ${server.getUsername} auth: ${auth.getUsername}")
         System.err.println(s"Setting authentication for repo: ${repo.getUrl} server: ${server.getUsername} auth: ${auth.getUsername}")
         repo.setAuthentication(auth)
       }
