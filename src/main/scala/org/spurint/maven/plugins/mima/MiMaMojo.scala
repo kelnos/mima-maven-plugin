@@ -84,8 +84,8 @@ class MiMaMojo extends AbstractMojo {
   @Parameter(property = "mima.skip", defaultValue = "false")
   private var skip: Boolean = false
 
-  @Parameter(property = "readTimeout", defaultValue = "60000")
-  private var readTimeout: Int = 60000
+  @Parameter(property = "readTimeout", defaultValue = "4000")
+  private var readTimeout: Int = 4000
 
   @Parameter(defaultValue = "${project.build.outputDirectory}", required = true, readonly = true)
   private var buildOutputDirectory: File = _

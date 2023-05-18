@@ -5,7 +5,7 @@
   </prerequisites>
 
   <groupId>org.spurint.maven.plugins</groupId>
-  <artifactId>jay-mima-maven-plugin</artifactId>
+  <artifactId>mima-maven-plugin</artifactId>
   <version>0.9.3.0</version>
   <packaging>maven-plugin</packaging>
 
