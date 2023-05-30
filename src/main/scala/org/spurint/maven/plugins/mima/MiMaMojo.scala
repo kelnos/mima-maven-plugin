@@ -3,10 +3,11 @@ package org.spurint.maven.plugins.mima
 import com.typesafe.tools.mima.core.util.log.Logging
 import com.typesafe.tools.mima.core.{Problem, ProblemFilter, ProblemFilters}
 import com.typesafe.tools.mima.lib.MiMaLib
-
 import java.io.{File, FileNotFoundException, InputStream}
 import java.net.{HttpURLConnection, URL}
+import java.nio.charset.StandardCharsets
 import java.util
+import java.util.Base64
 import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager
 import org.apache.maven.artifact.repository.{ArtifactRepository, Authentication}
 import org.apache.maven.artifact.versioning.VersionRange
@@ -19,8 +20,6 @@ import org.apache.maven.shared.transfer.artifact.DefaultArtifactCoordinate
 import org.apache.maven.shared.transfer.artifact.resolve.{ArtifactResolver, ArtifactResolverException}
 import org.apache.maven.plugins.annotations.Parameter
 import org.apache.maven.settings.Settings
-
-import java.util.Base64
 import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -84,8 +83,8 @@ class MiMaMojo extends AbstractMojo {
   @Parameter(property = "mima.skip", defaultValue = "false")
   private var skip: Boolean = false
 
-  @Parameter(property = "readTimeout", defaultValue = "60000")
-  private var readTimeout: Int = 60000
+  @Parameter(property = "readTimeout", defaultValue = "4000")
+  private var readTimeout: Int = 4000
 
   @Parameter(defaultValue = "${project.build.outputDirectory}", required = true, readonly = true)
   private var buildOutputDirectory: File = _
@@ -212,12 +211,10 @@ class MiMaMojo extends AbstractMojo {
 
     remoteRepositories.forEach { repo =>
       val serverOpt = Option(settings.getServer(repo.getId))
-      System.err.println(s"Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
       serverOpt.foreach { server =>
         val user = server.getUsername
         val passwd = server.getPassword
         val auth = new Authentication(user, passwd)
-        System.err.println(s"Setting authentication for repo: ${repo.getUrl} server: ${server.getUsername} auth: ${auth.getUsername}")
         repo.setAuthentication(auth)
       }
     }
@@ -240,8 +237,8 @@ class MiMaMojo extends AbstractMojo {
           getLog.warn(s"Unable to fetch previous artifact: $e")
           Option.empty
       }) match {
-      case Success(file) => file
-      case Failure(ex) => throw ex
+        case Success(file) => file
+        case Failure(ex) => throw ex
     }
   }
 
@@ -249,7 +246,6 @@ class MiMaMojo extends AbstractMojo {
     this.remoteRepositories.asScala.foldLeft(Option.empty[String])({
       case (None, repo) =>
         val serverOpt = Option(settings.getServer(repo.getId))
-        getLog.info(s"Repo: ${repo.getUrl} server: ${serverOpt.map(_.getId)}")
         val credsOpt = serverOpt.map( {server => (server.getUsername, server.getPassword)})
         val url = new URL(s"${repo.getUrl}/${this.project.getGroupId.replace(".", "/")}/${this.project.getArtifactId}/maven-metadata.xml")
         makeHttpRequest(url, credsOpt).flatMap({ input =>
@@ -268,7 +264,8 @@ class MiMaMojo extends AbstractMojo {
       }
       credsOpt.foreach { case (username, password) =>
         val userPass = s"$username:$password"
-        val basicAuth = s"Basic ${new String(Base64.getEncoder.encode(userPass.getBytes))}"
+//        val basicAuth = s"Basic ${new String(Base64.getEncoder.encode(userPass.getBytes))}"
+        val basicAuth = s"Basic ${Base64.getEncoder.encodeToString(userPass.getBytes(StandardCharsets.UTF_8))}"
         getLog.info(s"$url using basic authentication.")
         conn.setRequestProperty("Authorization", basicAuth)
       }
