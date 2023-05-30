@@ -264,7 +264,6 @@ class MiMaMojo extends AbstractMojo {
       }
       credsOpt.foreach { case (username, password) =>
         val userPass = s"$username:$password"
-//        val basicAuth = s"Basic ${new String(Base64.getEncoder.encode(userPass.getBytes))}"
         val basicAuth = s"Basic ${Base64.getEncoder.encodeToString(userPass.getBytes(StandardCharsets.UTF_8))}"
         getLog.info(s"$url using basic authentication.")
         conn.setRequestProperty("Authorization", basicAuth)
