@@ -56,7 +56,7 @@
     <plexus-utils.version>3.3.0</plexus-utils.version>
     <scala.binary.version>2.13</scala.binary.version>
     <scala.version>2.13.6</scala.version>
-    <scala-xml.version>2.0.1</scala-xml.version>
+    <scala-xml.version>2.2.0</scala-xml.version>
   </properties>
 
   <dependencies>
